@@ -6,6 +6,8 @@ import posixpath
 import adbtools
 from typing import Final
 
+ADB_PATTERN: str = "adb://"
+
 
 class PathInfo(ABC):
 
@@ -43,7 +45,7 @@ class PathInfo(ABC):
         pass
 
     @abstractmethod
-    def list_files(self) -> list:
+    def list_files(self) -> list["PathInfo"]:
         pass
 
     def __repr__(self) -> str:
@@ -79,7 +81,9 @@ class LocalPathInfo(PathInfo):
             self._size = stat_result.st_size
 
     def get_md5_sum(self) -> str:
-        pass
+        with open(self._path, 'rb') as f:
+            data: bytes = f.read()
+            return hashlib.md5(data).hexdigest()
 
     def list_files(self) -> list[PathInfo]:
         return [LocalPathInfo(dir_entry) for dir_entry in os.scandir(self._path)]
@@ -111,9 +115,11 @@ class AdbPathInfo(PathInfo):
              self._name) = AdbPathInfo.__parse_ls_output(ls_output)
             self._path: str = posixpath.join(path, self._name)
 
+    @staticmethod
     def __split_ls_output(ls_output: str):
         return ls_output.split(maxsplit=AdbPathInfo.LS_OUTPUT_COLUMNS)
 
+    @staticmethod
     def __parse_ls_output(ls_output: str) -> tuple[bool, bool, int, datetime, str]:
         print("parsing " + ls_output)
         type_and_perms, _, _, _, size, date, time, timezone, filename = AdbPathInfo.__split_ls_output(
@@ -134,3 +140,9 @@ class AdbPathInfo(PathInfo):
         ls_output_list: list[str] = adbtools.ls_ll(self._path)
         ls_output_list = ls_output_list[1:]  # first output is total amount
         return [AdbPathInfo(self._path, ls_output) for ls_output in ls_output_list]
+
+
+def get_path_info(path: str) -> PathInfo:
+    if path.startswith(ADB_PATTERN):
+        return AdbPathInfo(path.replace(ADB_PATTERN, 1))
+    return LocalPathInfo(path)
