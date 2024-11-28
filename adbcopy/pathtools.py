@@ -8,7 +8,7 @@ def copy(src: PathInfo, target: PathInfo):
     src_path = src.get_path()
     target_path = target.get_path()
     if type(src) is LocalPathInfo and type(target) is LocalPathInfo:
-        shutil.copy(src_path, target_path)
+        shutil.copy2(src_path, target_path)
     elif type(src) is LocalPathInfo and type(target) is AdbPathInfo:
         adbtools.push(src_path, target_path)
     elif type(src) is AdbPathInfo and type(target) is LocalPathInfo:
@@ -31,6 +31,6 @@ def remove(path_info: PathInfo):
 def mkdir(path_info: PathInfo):
     path = path_info.get_path()
     if type(path_info) is AdbPathInfo:
-        adbtools.mkdir(path)
+        adbtools.makedirs(path)
     else:
-        os.mkdir(path)
+        os.makedirs(path)

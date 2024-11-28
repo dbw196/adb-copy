@@ -4,9 +4,14 @@ import hashlib
 import os
 import posixpath
 import adbtools
-from typing import Final
+from typing import Final, cast
+from logging import Logger, getLogger
 
-ADB_PATTERN: str = "adb://"
+
+
+logger: Logger = getLogger(__name__)
+
+ADB_PATTERN: str = "adb:"
 
 
 class PathInfo(ABC):
@@ -16,7 +21,7 @@ class PathInfo(ABC):
     _exists: bool
     _is_file: bool
     _is_dir: bool
-    _modification_time: float
+    _modification_time: datetime
     _size: int
 
     def get_name(self):
@@ -35,17 +40,21 @@ class PathInfo(ABC):
         return self._exists and self._is_dir
 
     def get_modification_time(self) -> datetime:
-        return self._modification_time if self._exists else None
+        return self._modification_time
 
     def get_size(self) -> int:
-        return self._size if self._exists else None
+        return self._size
 
     @abstractmethod
     def get_md5_sum(self) -> str:
         pass
 
     @abstractmethod
-    def list_files(self) -> list["PathInfo"]:
+    def list_dir(self) -> list["PathInfo"]:
+        pass
+
+    @abstractmethod
+    def get_child(self, child) -> "PathInfo":
         pass
 
     def __repr__(self) -> str:
@@ -70,6 +79,7 @@ class LocalPathInfo(PathInfo):
                     os.path.getmtime(self._path))
                 self._size = os.path.getsize(self._path)
         else:
+            arg = cast(os.DirEntry, arg)
             self._path = arg.path
             self._name = arg.name
             self._exists = True
@@ -85,14 +95,19 @@ class LocalPathInfo(PathInfo):
             data: bytes = f.read()
             return hashlib.md5(data).hexdigest()
 
-    def list_files(self) -> list[PathInfo]:
+    def list_dir(self) -> list[PathInfo]:
         return [LocalPathInfo(dir_entry) for dir_entry in os.scandir(self._path)]
+    
+    def get_child(self, child) -> PathInfo:
+        return LocalPathInfo(os.path.join(self._path, child))
+    
+
 
 
 class AdbPathInfo(PathInfo):
     LS_OUTPUT_COLUMNS: Final[int] = 8
 
-    def __init__(self, path: str, ls_output: str = None):
+    def __init__(self, path: str, ls_output: str | None = None):
         if ls_output is None:
             self._path: str = posixpath.normpath(path)
             self._name = posixpath.basename(self._path)
@@ -104,6 +119,7 @@ class AdbPathInfo(PathInfo):
                     ls_output = adbtools.ls_ll(self._path)[0]
                 else:
                     parent = posixpath.dirname(self._path)
+                    logger.debug("parent: %s", parent)
                     ls_output = next(line for line in adbtools.ls_ll(
                         parent) if posixpath.split(AdbPathInfo.__split_ls_output(line)[-1])[-1] == self._name)
                 (_, _, self._size, self._modification_time,
@@ -111,8 +127,7 @@ class AdbPathInfo(PathInfo):
 
         else:
             self._exists = True
-            (self._is_file, self._is_dir, self._size, self._modification_time,
-             self._name) = AdbPathInfo.__parse_ls_output(ls_output)
+            self._is_file, self._is_dir, self._size, self._modification_time, self._name = AdbPathInfo.__parse_ls_output(ls_output)
             self._path: str = posixpath.join(path, self._name)
 
     @staticmethod
@@ -121,7 +136,7 @@ class AdbPathInfo(PathInfo):
 
     @staticmethod
     def __parse_ls_output(ls_output: str) -> tuple[bool, bool, int, datetime, str]:
-        print("parsing " + ls_output)
+        logger.debug("parsing %s", ls_output)
         type_and_perms, _, _, _, size, date, time, timezone, filename = AdbPathInfo.__split_ls_output(
             ls_output)
         date_time_str = f"{date} {time}{timezone}"
@@ -136,13 +151,18 @@ class AdbPathInfo(PathInfo):
     def get_md5_sum(self) -> str:
         return adbtools.md5_sum(self._path)
 
-    def list_files(self) -> list[PathInfo]:
+    def list_dir(self) -> list[PathInfo]:
         ls_output_list: list[str] = adbtools.ls_ll(self._path)
         ls_output_list = ls_output_list[1:]  # first output is total amount
         return [AdbPathInfo(self._path, ls_output) for ls_output in ls_output_list]
+    
+    def get_child(self, child) -> PathInfo:
+        return AdbPathInfo(posixpath.join(self._path, child))
+    
+    
 
 
 def get_path_info(path: str) -> PathInfo:
     if path.startswith(ADB_PATTERN):
-        return AdbPathInfo(path.replace(ADB_PATTERN, 1))
+        return AdbPathInfo(path.replace(ADB_PATTERN, "", 1))
     return LocalPathInfo(path)
