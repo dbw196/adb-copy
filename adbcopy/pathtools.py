@@ -1,6 +1,6 @@
-from pathinfo import PathInfo, LocalPathInfo, AdbPathInfo
+from adbcopy.pathinfo import PathInfo, LocalPathInfo, AdbPathInfo
 import shutil
-import adbtools
+from adbcopy import adbtools
 import os
 
 
@@ -25,7 +25,10 @@ def remove(path_info: PathInfo):
     if type(path_info) is AdbPathInfo:
         adbtools.remove(path)
     else:
-        os.remove(path)
+        if path_info.is_dir():
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
 
 
 def mkdir(path_info: PathInfo):

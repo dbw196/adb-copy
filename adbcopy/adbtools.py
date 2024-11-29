@@ -26,7 +26,7 @@ MD5_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "md5sum"]
 
 MKDIR_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "mkdir", "-p"]
 
-RM_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "rm"]
+RM_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "rm", "-rf"]
 
 CP_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "cp"]
 
@@ -63,13 +63,13 @@ def is_dir(path: str) -> bool:
 
 
 def ls_ll(path: str) -> list[str]:
-    output: str = __run_command_with_output(*LS_COMMAND, path)
+    output: str = __run_command_with_output(*LS_COMMAND, f"'{path}'")
     lines: list[str] = output.strip().split("\n")
     return lines
 
 
 def md5_sum(path: str) -> str:
-    output: str = __run_command_with_output(*MD5_COMMAND, path)
+    output: str = __run_command_with_output(*MD5_COMMAND, f"'{path}'")
     return output.split()[0]
 
 
@@ -82,12 +82,12 @@ def pull(source_path: str, target_path: str):
 
 
 def makedirs(path: str):
-    __run_command(*MKDIR_COMMAND, path)
+    __run_command(*MKDIR_COMMAND, f"'{path}'")
 
 
 def remove(path: str):
-    __run_command(*RM_COMMAND, path)
+    __run_command(*RM_COMMAND, f"'{path}'")
 
 
 def copy(source_path: str, target_path: str):
-    __run_command(*CP_COMMAND, source_path, target_path)
+    __run_command(*CP_COMMAND, source_path, f"'{target_path}'")

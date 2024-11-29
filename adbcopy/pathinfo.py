@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import os
 import posixpath
-import adbtools
+from adbcopy import adbtools
 from typing import Final, cast
 from logging import Logger, getLogger
 
@@ -75,8 +75,7 @@ class LocalPathInfo(PathInfo):
             if (self._exists):
                 self._is_file = os.path.isfile(self._path)
                 self._is_dir = os.path.isdir(self._path)
-                self._modification_time = datetime.fromtimestamp(
-                    os.path.getmtime(self._path))
+                self._modification_time = datetime.fromtimestamp(os.path.getmtime(self._path), tz=timezone.utc).replace(microsecond=0)
                 self._size = os.path.getsize(self._path)
         else:
             arg = cast(os.DirEntry, arg)
@@ -86,8 +85,7 @@ class LocalPathInfo(PathInfo):
             self._is_file = arg.is_file()
             self._is_dir = arg.is_dir()
             stat_result = arg.stat()
-            self._modification_time = datetime.fromtimestamp(
-                stat_result.st_mtime)
+            self._modification_time = datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc).replace(microsecond=0)
             self._size = stat_result.st_size
 
     def get_md5_sum(self) -> str:
@@ -109,7 +107,7 @@ class AdbPathInfo(PathInfo):
 
     def __init__(self, path: str, ls_output: str | None = None):
         if ls_output is None:
-            self._path: str = posixpath.normpath(path)
+            self._path = posixpath.normpath(path)
             self._name = posixpath.basename(self._path)
             self._exists = adbtools.exists(self._path)
             if self._exists:
@@ -128,7 +126,7 @@ class AdbPathInfo(PathInfo):
         else:
             self._exists = True
             self._is_file, self._is_dir, self._size, self._modification_time, self._name = AdbPathInfo.__parse_ls_output(ls_output)
-            self._path: str = posixpath.join(path, self._name)
+            self._path = posixpath.join(path, self._name)
 
     @staticmethod
     def __split_ls_output(ls_output: str):
@@ -137,10 +135,10 @@ class AdbPathInfo(PathInfo):
     @staticmethod
     def __parse_ls_output(ls_output: str) -> tuple[bool, bool, int, datetime, str]:
         logger.debug("parsing %s", ls_output)
-        type_and_perms, _, _, _, size, date, time, timezone, filename = AdbPathInfo.__split_ls_output(
+        type_and_perms, _, _, _, size, date, time, tz, filename = AdbPathInfo.__split_ls_output(
             ls_output)
-        date_time_str = f"{date} {time}{timezone}"
-        date_time = datetime.fromisoformat(date_time_str)
+        date_time_str = f"{date} {time}{tz}"
+        date_time: datetime = datetime.fromisoformat(date_time_str).replace(microsecond=0).astimezone(timezone.utc)
         return (type_and_perms[0] == "-",
                 type_and_perms[0] == "d",
                 int(size),

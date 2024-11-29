@@ -1,8 +1,7 @@
-from pathinfo import PathInfo, get_path_info, ADB_PATTERN
+from adbcopy.pathinfo import PathInfo, get_path_info, ADB_PATTERN
 from logging import Logger, getLogger
 import logging
-import pathtools
-import os
+from adbcopy import pathtools
 import argparse
 
 __logger: Logger = getLogger(__name__)
@@ -38,7 +37,7 @@ def sync(src_path: str | PathInfo, target_path: str | PathInfo, check_md5_sum: b
                     pathtools.remove(target_item)
                 new_target: PathInfo = target.get_child(name)
                 __logger.info(f"recursing into: {src_item.get_path()}")
-                sync(src_item, new_target)
+                sync(src_item, new_target, check_md5_sum)
             elif not name in target_items:
                 __logger.info(f"copying '{src_item.get_path()}' to '{target.get_path()}'")
                 pathtools.copy(src_item, target)
@@ -59,15 +58,15 @@ def should_update(src: PathInfo, target: PathInfo, check_md5_sum: bool) -> bool:
         raise ValueError("src is not file")
     if not target.is_file():
         raise ValueError("target is not file")
-    src_modification_time = src.get_modification_time()
-    target_modification_time = target.get_modification_time()
-    if src_modification_time != target_modification_time:
-        __logger.info(f"modification time is different: {src_modification_time} vs. {target_modification_time}")
-        return True
     src_size = src.get_size()
     target_size = target.get_size()
     if src_size != target_size:
         __logger.info(f"size is different: {src_size} vs. {target_size}")
+        return True
+    src_modification_time = src.get_modification_time()
+    target_modification_time = target.get_modification_time()
+    if src_modification_time != target_modification_time:
+        __logger.info(f"modification time is different: {src_modification_time} vs. {target_modification_time}")
         return True
     if check_md5_sum:
         src_md5_sum = src.get_md5_sum()
@@ -79,7 +78,7 @@ def should_update(src: PathInfo, target: PathInfo, check_md5_sum: bool) -> bool:
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    
     description = """
 Synchronizes two folders (one-way sync, target will mirror source).
 For path arguments: If path begins with '%s', it is considered as a path on the device connected via ADB,
@@ -90,8 +89,11 @@ if not it is considered to be a local path.
     arg_parser.add_argument("src_path", help="The source path")
     arg_parser.add_argument("target_path", help="The target path")
     arg_parser.add_argument("--check_md5_sum", action="store_true", help="perform an md5 sum check in addition to modification time check when checking whether a file should be updated")
+    arg_parser.add_argument("--verbose", action="store_true", help="enable verbose logging")
 
     args = arg_parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s\t%(levelname)s\t%(filename)s\t\t%(message)s")
 
     sync(args.src_path, args.target_path, args.check_md5_sum)
 
