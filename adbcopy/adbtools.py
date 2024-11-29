@@ -16,11 +16,11 @@ PULL_COMMAND: Final[list[str]] = [ADB_COMMAND, "pull"]
 
 LS_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "ls", "-llL"]
 
-EXISTS_SUBCOMMAND_PATTERN: Final[str] = f"[ -e '%s' ]"
+EXISTS_SUBCOMMAND_PATTERN: Final[str] = f"[ -e %s ]"
 
-IS_FILE_SUBCOMMAND_PATTERN: Final[str] = f"[ -f '%s' ]"
+IS_FILE_SUBCOMMAND_PATTERN: Final[str] = f"[ -f %s ]"
 
-IS_DIR_SUBCOMMAND_PATTERN: Final[str] = f"[ -d '%s' ]"
+IS_DIR_SUBCOMMAND_PATTERN: Final[str] = f"[ -d %s ]"
 
 MD5_COMMAND: Final[list[str]] = [*SHELL_COMMAND, "md5sum"]
 
@@ -51,25 +51,25 @@ def __run_command(*args: str) -> None:
 
 
 def exists(path: str) -> bool:
-    return __run_file_command(EXISTS_SUBCOMMAND_PATTERN, path)
+    return __run_file_command(EXISTS_SUBCOMMAND_PATTERN, __escape(path))
 
 
 def is_file(path: str) -> bool:
-    return __run_file_command(IS_FILE_SUBCOMMAND_PATTERN, path)
+    return __run_file_command(IS_FILE_SUBCOMMAND_PATTERN, __escape(path))
 
 
 def is_dir(path: str) -> bool:
-    return __run_file_command(IS_DIR_SUBCOMMAND_PATTERN, path)
+    return __run_file_command(IS_DIR_SUBCOMMAND_PATTERN, __escape(path))
 
 
 def ls_ll(path: str) -> list[str]:
-    output: str = __run_command_with_output(*LS_COMMAND, f"'{path}'")
+    output: str = __run_command_with_output(*LS_COMMAND, __escape(path))
     lines: list[str] = output.strip().split("\n")
     return lines
 
 
 def md5_sum(path: str) -> str:
-    output: str = __run_command_with_output(*MD5_COMMAND, f"'{path}'")
+    output: str = __run_command_with_output(*MD5_COMMAND, __escape(path))
     return output.split()[0]
 
 
@@ -82,12 +82,31 @@ def pull(source_path: str, target_path: str):
 
 
 def makedirs(path: str):
-    __run_command(*MKDIR_COMMAND, f"'{path}'")
+    __run_command(*MKDIR_COMMAND, __escape(path))
 
 
 def remove(path: str):
-    __run_command(*RM_COMMAND, f"'{path}'")
+    __run_command(*RM_COMMAND, __escape(path))
 
 
 def copy(source_path: str, target_path: str):
-    __run_command(*CP_COMMAND, source_path, f"'{target_path}'")
+    __run_command(*CP_COMMAND, __escape(source_path), __escape(target_path))
+
+def __escape(path: str):
+    # https://stackoverflow.com/a/31371987
+    result = (path.replace(" ", r"\ ")
+              .replace("'", r"\'")
+              .replace("(", r"\(")
+              .replace(")", r"\)")
+              .replace("<", r"\<")
+              .replace(">", r"\>")
+              .replace(";", r"\;")
+              .replace("&", r"\&")
+              .replace("*", r"\*")
+              .replace("~", r"\~")
+              .replace("`", r"\`")
+              .replace("%", r"\%")
+              .replace("$", r"\$")
+              )
+    __logger.debug(result)
+    return result
